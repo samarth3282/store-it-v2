@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+python-multipart
+langchain
+langgraph
+langchain-google-genai
+appwrite
+python-dotenv
+pydantic
+requests
+pdfplumber
+numpy
