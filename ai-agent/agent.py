@@ -82,7 +82,7 @@ CRITICAL RULES:
 
 # ─── Graph Nodes ─────────────────────────────────────────────────────────────
 
-def chatbot(state: AgentState):
+def chatbot(state: AgentState, config: dict):
     print("--- Invoking Model ---")
     print(f"Messages in state: {len(state['messages'])}")
 
@@ -96,7 +96,7 @@ def chatbot(state: AgentState):
     max_retries = 3
     for attempt in range(max_retries):
         try:
-            return {"messages": [llm_with_tools.invoke(messages)]}
+            return {"messages": [llm_with_tools.invoke(messages, config)]}
         except Exception as e:
             if "429" in str(e) or isinstance(e, ResourceExhausted):
                 wait = (attempt + 1) * 5  # 5s, 10s, 15s
@@ -106,7 +106,7 @@ def chatbot(state: AgentState):
                 raise e
 
     # Final attempt after retries
-    return {"messages": [llm_with_tools.invoke(messages)]}
+    return {"messages": [llm_with_tools.invoke(messages, config)]}
 
 
 # ─── Graph Construction ───────────────────────────────────────────────────────
