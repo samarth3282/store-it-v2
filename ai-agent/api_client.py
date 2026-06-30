@@ -6,6 +6,7 @@ Authentication headers (JWT + agent secret) are attached automatically.
 """
 
 import httpx
+from typing import Optional
 from config import EXPRESS_API_URL, AGENT_SECRET, user_token_var
 
 # ─── Shared timeouts ──────────────────────────────────────────────────────────
@@ -34,8 +35,8 @@ def _agent_headers() -> dict:
 # ─── File Management ──────────────────────────────────────────────────────────
 
 async def search_files_api(
-    search_text: str | None = None,
-    file_type: str | None = None,
+    search_text: Optional[str] = None,
+    file_type: Optional[str] = None,
     limit: int = 20,
 ) -> dict:
     """
@@ -201,7 +202,7 @@ async def store_vectors_api(
 async def query_vectors_api(
     query_embedding: list[float],
     top_k: int = 5,
-    file_id: str | None = None,
+    file_id: Optional[str] = None,
 ) -> list[dict]:
     """
     Cosine similarity search over stored vectors.
