@@ -14,6 +14,31 @@ from dotenv import load_dotenv
 # The new .env lives in ai-agent/ itself.
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
 
+import json
+
+# --- NEW: Fetch from AWS Secrets Manager ---
+if os.environ.get("USE_SECRETS_MANAGER") == "true":
+    print("🔒 Fetching configuration from AWS Secrets Manager...")
+    import boto3
+    from botocore.exceptions import ClientError
+    
+    region_name = os.environ.get("AWS_REGION", "us-east-1")
+    secret_name = os.environ.get("AWS_SECRET_NAME")
+    
+    session = boto3.session.Session()
+    client = session.client(service_name='secretsmanager', region_name=region_name)
+    
+    try:
+        get_secret_value_response = client.get_secret_value(SecretId=secret_name)
+        secrets = json.loads(get_secret_value_response['SecretString'])
+        # Merge secrets into environment variables
+        for key, value in secrets.items():
+            os.environ[key] = str(value)
+        print("✅ Secrets fetched successfully.")
+    except ClientError as e:
+        print(f"❌ Failed to fetch secrets: {e}")
+        raise e
+
 # ─── Required ────────────────────────────────────────────────────────────────
 
 EXPRESS_API_URL: str = os.environ.get("EXPRESS_API_URL", "http://localhost:5000")

@@ -27,3 +27,6 @@ pydantic
 
 # Numeric (kept for potential local fallback; minimal footprint)
 numpy
+
+# AWS Secrets Manager
+boto3
