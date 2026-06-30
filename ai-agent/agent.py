@@ -82,7 +82,9 @@ CRITICAL RULES:
 
 # ─── Graph Nodes ─────────────────────────────────────────────────────────────
 
-def chatbot(state: AgentState, config: dict):
+from langchain_core.runnables import RunnableConfig
+
+def chatbot(state: AgentState, config: RunnableConfig):
     print("--- Invoking Model ---")
     print(f"Messages in state: {len(state['messages'])}")
 
