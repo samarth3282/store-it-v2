@@ -1,6 +1,6 @@
+import { env } from './src/config/env.js';
 import app from './src/app.js';
 import { connectDB } from './src/config/db.js';
-import { env } from './src/config/env.js';
 import { logger } from './src/utils/logger.js';
 
 const start = async () => {
