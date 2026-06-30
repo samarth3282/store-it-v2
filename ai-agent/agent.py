@@ -1,80 +1,117 @@
+"""
+agent.py — LangGraph ReAct agent for StoreIt file management.
+
+Graph structure: chatbot → (tools_condition) → tools → chatbot → END
+This is UNCHANGED from the original. Only the system prompt and imports change.
+"""
+
 import os
+import time
 from typing import TypedDict, Annotated, List
+
 from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode, tools_condition
 from langgraph.graph.message import add_messages
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
-from langchain_core.prompts import ChatPromptTemplate
-from dotenv import load_dotenv
+from langchain_core.messages import BaseMessage, SystemMessage
+from google.api_core.exceptions import ResourceExhausted
+
+# config.py loads .env and validates required vars — import it first
+from config import GOOGLE_API_KEY
 
 from tools import search_files, rename_file, delete_file, share_file, get_storage_stats
 from rag import process_file_for_search, ask_file_question
 
-load_dotenv(dotenv_path="../.env.local")
+# ─── Agent State ─────────────────────────────────────────────────────────────
 
-# Define Agent State
 class AgentState(TypedDict):
     messages: Annotated[List[BaseMessage], add_messages]
 
-# Initialize Model
+
+# ─── LLM Initialisation ───────────────────────────────────────────────────────
+
 llm = ChatGoogleGenerativeAI(
-    model="models/gemini-2.5-flash", 
-    google_api_key=os.getenv("GOOGLE_API_KEY"),
+    model="models/gemini-2.5-flash",
+    google_api_key=GOOGLE_API_KEY,
     temperature=0,
-    max_retries=5 
+    max_retries=5,
 )
 
-# Bind Tools
-tools = [search_files, rename_file, delete_file, share_file, get_storage_stats, process_file_for_search, ask_file_question]
+# ─── Tool Binding ─────────────────────────────────────────────────────────────
+
+tools = [
+    search_files,
+    rename_file,
+    delete_file,
+    share_file,
+    get_storage_stats,
+    process_file_for_search,
+    ask_file_question,
+]
 llm_with_tools = llm.bind_tools(tools)
 
-# System Prompt
-SYSTEM_PROMPT = """You are a helpful File Management Assistant.
-Your goal is to help users manage their files in a storage system.
+
+# ─── System Prompt ────────────────────────────────────────────────────────────
+#
+# CHANGES from original:
+#   - Rule 1: Removed "BucketFileID" requirement. Only "ID" is needed.
+#   - Rule 4: delete_file now takes ONLY file_id (no bucket_file_id).
+#   - Rule 5: Added process_file_for_search and ask_file_question guidance.
+#
+SYSTEM_PROMPT = """You are a helpful File Management Assistant for StoreIt.
+Your goal is to help users manage their files and answer questions about file content.
 
 CRITICAL RULES:
-1. BEFORE performing any action (Rename, Delete, Share), you MUST FIRST search for the file to get its 'ID' and 'BucketFileID'.
-2. If you don't know the ID, use the `search_files` tool with the filename.
-3. When renaming, you only need to provide the 'new_name'. The system will handle the extension.
-4. When deleting, you need BOTH 'file_id' and 'bucket_file_id' (found via search).
-5. Always confirm the action to the user after completion.
-6. DO NOT show 'ID' or 'BucketFileID' in your final response to the user unless strictly necessary or asked. Keep the response clean and natural.
+1. BEFORE performing any action (Rename, Delete, Share), you MUST FIRST use
+   search_files to find the file and get its 'ID'.
+2. If you don't know the file ID, use search_files with the filename.
+3. When renaming, provide only the new base name — DO NOT include the file extension.
+   The system preserves the original extension automatically.
+4. When deleting, you need ONLY the 'ID' (obtained from search_files).
+   There is no separate bucket ID — the system handles storage cleanup internally.
+5. When sharing, provide the file 'ID' and a list of email addresses.
+6. To answer questions about file content:
+   - First use process_file_for_search with the file's 'ID' to index it.
+   - Then use ask_file_question with your question.
+   - You can also use ask_file_question alone if the file was already indexed.
+7. Always confirm completed actions to the user.
+8. DO NOT show internal 'IDs' in your final response unless the user specifically asks.
+   Keep responses clean and conversational.
 """
 
-# Define Logic
+
+# ─── Graph Nodes ─────────────────────────────────────────────────────────────
+
 def chatbot(state: AgentState):
     print("--- Invoking Model ---")
-    print(f"Messages: {len(state['messages'])}")
-    for m in state["messages"]:
-        print(f"- {m.type}: {m.content} (Tools: {getattr(m, 'tool_calls', 'None')})")
-    
+    print(f"Messages in state: {len(state['messages'])}")
+
     messages = state["messages"]
+
+    # Inject system prompt at position 0 if not already present
     if not messages or messages[0].type != "system":
-         # Inject system prompt at the start
-         from langchain_core.messages import SystemMessage
-         messages = [SystemMessage(content=SYSTEM_PROMPT)] + messages
+        messages = [SystemMessage(content=SYSTEM_PROMPT)] + messages
 
-    # Retry logic for 429 Errors
-    import time
-    from google.api_core.exceptions import ResourceExhausted
-
+    # Retry logic for 429 ResourceExhausted — unchanged from original
     max_retries = 3
     for attempt in range(max_retries):
         try:
-             return {"messages": [llm_with_tools.invoke(messages)]}
+            return {"messages": [llm_with_tools.invoke(messages)]}
         except Exception as e:
             if "429" in str(e) or isinstance(e, ResourceExhausted):
-                wait = (attempt + 1) * 5
-                print(f"WARNING: Rate limit hit. Retrying in {wait}s...")
+                wait = (attempt + 1) * 5  # 5s, 10s, 15s
+                print(f"WARNING: Rate limit hit. Retrying in {wait}s... (attempt {attempt+1}/{max_retries})")
                 time.sleep(wait)
             else:
                 raise e
-    
-    # Final attempt
+
+    # Final attempt after retries
     return {"messages": [llm_with_tools.invoke(messages)]}
 
-# Build Graph
+
+# ─── Graph Construction ───────────────────────────────────────────────────────
+# UNCHANGED from original.
+
 graph_builder = StateGraph(AgentState)
 
 graph_builder.add_node("chatbot", chatbot)
@@ -82,11 +119,6 @@ graph_builder.add_node("tools", ToolNode(tools))
 
 graph_builder.add_edge("tools", "chatbot")
 graph_builder.set_entry_point("chatbot")
-
-# Conditional Edge: If tool call -> go to tools, else -> END
-graph_builder.add_conditional_edges(
-    "chatbot",
-    tools_condition,
-)
+graph_builder.add_conditional_edges("chatbot", tools_condition)
 
 agent_executor = graph_builder.compile()

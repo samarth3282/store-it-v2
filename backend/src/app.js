@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import cookieParser from 'cookie-parser';
 import { env } from './config/env.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import indexRouter from './routes/index.js';
@@ -19,9 +20,10 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'x-agent-secret'],
 }));
 
-// Body parsers
-app.use(express.json({ limit: '10kb' }));           // JSON body (not for file uploads)
-app.use(express.urlencoded({ extended: true }));
+// Body & Cookie parsers
+app.use(express.json({ limit: '50mb' }));           // JSON body (increased for vector embeddings)
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(cookieParser());
 
 // HTTP access logging
 app.use(morgan(env.NODE_ENV === 'production' ? 'combined' : 'dev'));

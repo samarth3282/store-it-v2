@@ -5,15 +5,13 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
  * Access tokens should never be in localStorage.
  */
 let accessToken: string | null = null;
-let refreshTokenValue: string | null = null;
+let refreshPromise: Promise<boolean> | null = null;
 
-export const setTokens = (access: string, refresh: string) => {
+export const setTokens = (access: string, _refresh?: string) => {
   accessToken = access;
-  refreshTokenValue = refresh;
   // Also store in sessionStorage for page reloads (access token only)
   if (typeof window !== 'undefined') {
     sessionStorage.setItem('accessToken', access);
-    sessionStorage.setItem('refreshToken', refresh);
   }
 };
 
@@ -25,35 +23,22 @@ export const getAccessToken = (): string | null => {
   return accessToken;
 };
 
-export const getRefreshToken = (): string | null => {
-  if (refreshTokenValue) return refreshTokenValue;
-  if (typeof window !== 'undefined') {
-    refreshTokenValue = sessionStorage.getItem('refreshToken');
-  }
-  return refreshTokenValue;
-};
-
 export const clearTokens = () => {
   accessToken = null;
-  refreshTokenValue = null;
   if (typeof window !== 'undefined') {
     sessionStorage.removeItem('accessToken');
-    sessionStorage.removeItem('refreshToken');
   }
 };
 
 /**
- * Refresh the access token using the refresh token.
+ * Refresh the access token using the httpOnly refresh cookie.
  */
 const refreshAccessToken = async (): Promise<boolean> => {
-  const refresh = getRefreshToken();
-  if (!refresh) return false;
-
   try {
     const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken: refresh }),
+      credentials: 'include',
     });
 
     if (!response.ok) {
@@ -62,7 +47,7 @@ const refreshAccessToken = async (): Promise<boolean> => {
     }
 
     const data = await response.json();
-    setTokens(data.data.accessToken, data.data.refreshToken);
+    setTokens(data.data.accessToken);
     return true;
   } catch {
     clearTokens();
@@ -93,17 +78,24 @@ export const apiFetch = async (
     headers['Content-Type'] = 'application/json';
   }
 
-  let response = await fetch(url, { ...options, headers });
+  const fetchOptions = { ...options, headers, credentials: 'include' as RequestCredentials };
+  let response = await fetch(url, fetchOptions);
 
   // If 401 TOKEN_EXPIRED, try to refresh
   if (response.status === 401) {
     const body = await response.clone().json().catch(() => null);
     if (body?.code === 'TOKEN_EXPIRED') {
-      const refreshed = await refreshAccessToken();
+      if (!refreshPromise) {
+        refreshPromise = refreshAccessToken().finally(() => {
+          refreshPromise = null;
+        });
+      }
+      
+      const refreshed = await refreshPromise;
       if (refreshed) {
         // Retry the original request with the new token
         headers['Authorization'] = `Bearer ${getAccessToken()}`;
-        response = await fetch(url, { ...options, headers });
+        response = await fetch(url, { ...options, headers, credentials: 'include' as RequestCredentials });
       }
     }
   }

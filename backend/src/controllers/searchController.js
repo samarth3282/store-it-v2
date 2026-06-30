@@ -23,7 +23,7 @@ export const searchFiles = asyncHandler(async (req, res) => {
       { users: req.user.email },
     ],
     isDeleted: false,
-    name: { $regex: q, $options: 'i' },
+    $text: { $search: q },
   };
 
   if (type) query.type = type;

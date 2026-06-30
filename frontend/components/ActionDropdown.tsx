@@ -25,12 +25,15 @@ import {
   deleteFile,
   renameFile,
   shareFile,
+  unshareFile,
   downloadFile,
 } from "@/lib/api/files";
 import { usePathname, useRouter } from "next/navigation";
 import { FileDetails, ShareInput } from "@/components/ActionsModalContent";
+import { useToast } from "@/hooks/use-toast";
 
 const ActionDropdown = ({ file }: { file: any }) => {
+  const { toast } = useToast();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [action, setAction] = useState<ActionType | null>(null);
@@ -73,6 +76,12 @@ const ActionDropdown = ({ file }: { file: any }) => {
     if (success) {
       closeAllModals();
       router.refresh();
+    } else {
+      toast({
+        title: "Action Failed",
+        description: "Could not perform action on file.",
+        variant: "destructive",
+      });
     }
 
     setIsLoading(false);
@@ -81,11 +90,19 @@ const ActionDropdown = ({ file }: { file: any }) => {
   const handleRemoveUser = async (email: string) => {
     const updatedEmails = emails.filter((e) => e !== email);
 
-    const result = await shareFile(file.id, updatedEmails);
+    const result = await unshareFile(file.id, email);
 
-    if (result.success) setEmails(updatedEmails);
-    closeAllModals();
-    router.refresh();
+    if (result.success) {
+      setEmails(updatedEmails);
+      closeAllModals();
+      router.refresh();
+    } else {
+      toast({
+        title: "Remove Failed",
+        description: "Could not remove user from file.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleDownload = async () => {

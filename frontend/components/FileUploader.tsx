@@ -45,17 +45,43 @@ const FileUploader = ({ ownerId, accountId, className }: Props) => {
           });
         }
 
-        return uploadFile(file, file.name).then(
-          (result) => {
+        return uploadFile(file, file.name)
+          .then((result) => {
             if (result.success) {
               setFiles((prevFiles) =>
                 prevFiles.filter((f) => f.name !== file.name),
               );
               // Refresh the page to show new file
               router.refresh();
+            } else {
+              setFiles((prevFiles) =>
+                prevFiles.filter((f) => f.name !== file.name),
+              );
+              toast({
+                description: (
+                  <p className="body-2 text-white">
+                    <span className="font-semibold">{file.name}</span> failed:{" "}
+                    {result.message || "Unknown error"}
+                  </p>
+                ),
+                className: "error-toast",
+              });
             }
-          },
-        );
+          })
+          .catch((error) => {
+            setFiles((prevFiles) =>
+              prevFiles.filter((f) => f.name !== file.name),
+            );
+            toast({
+              description: (
+                <p className="body-2 text-white">
+                  <span className="font-semibold">{file.name}</span> failed:{" "}
+                  {error.message || "Network error"}
+                </p>
+              ),
+              className: "error-toast",
+            });
+          });
       });
 
       await Promise.all(uploadPromises);

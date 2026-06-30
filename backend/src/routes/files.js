@@ -2,7 +2,7 @@ import { Router } from 'express';
 import {
   uploadFile, getFiles, getFileById, renameFile,
   deleteFile, permanentDelete, restoreFile,
-  downloadFile, shareFile, updateTags, bulkDelete, getStorageStats,
+  downloadFile, shareFile, unshareFile, updateTags, bulkDelete, getStorageStats,
 } from '../controllers/fileController.js';
 import { verifyJWT } from '../middleware/auth.js';
 import { uploadSingle } from '../middleware/upload.js';
@@ -28,6 +28,7 @@ router.delete('/:fileId/permanent', permanentDelete);
 router.post('/:fileId/restore', restoreFile);
 router.get('/:fileId/download', downloadFile);
 router.post('/:fileId/share', shareFile);
+router.delete('/:fileId/share/:email', unshareFile);
 router.patch('/:fileId/tags', updateTags);
 
 export default router;

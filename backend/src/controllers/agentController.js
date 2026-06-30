@@ -8,11 +8,18 @@ import Vector from '../models/Vector.model.js';
  * List files for agent — includes s3Key and s3Bucket (unlike the user-facing endpoint).
  */
 export const listFilesForAgent = asyncHandler(async (req, res) => {
-  const { type, isIndexed } = req.query;
+  const { type, isIndexed, fileId } = req.query;
 
-  const query = { owner: req.user._id, isDeleted: false };
+  const query = { 
+    isDeleted: false,
+    $or: [
+      { owner: req.user._id },
+      { users: req.user.email }
+    ]
+  };
   if (type) query.type = type;
   if (isIndexed !== undefined) query.isIndexed = isIndexed === 'true';
+  if (fileId) query._id = fileId;
 
   const files = await File.find(query).select('name mimeType s3Key s3Bucket size isIndexed extension type createdAt');
 
@@ -40,7 +47,10 @@ export const listFilesForAgent = asyncHandler(async (req, res) => {
 export const getFileBufferHandler = asyncHandler(async (req, res) => {
   const file = await File.findOne({
     _id: req.params.fileId,
-    owner: req.user._id,
+    $or: [
+      { owner: req.user._id },
+      { users: req.user.email }
+    ]
   });
 
   if (!file) {
@@ -65,7 +75,10 @@ export const getFileBufferHandler = asyncHandler(async (req, res) => {
 export const storeVectors = asyncHandler(async (req, res) => {
   const { fileId, chunks, embeddingModel } = req.body;
 
-  const file = await File.findOne({ _id: fileId, owner: req.user._id });
+  const file = await File.findOne({
+    _id: fileId,
+    $or: [{ owner: req.user._id }, { users: req.user.email }]
+  });
   if (!file) {
     return res.status(404).json({
       success: false,
@@ -109,30 +122,63 @@ export const storeVectors = asyncHandler(async (req, res) => {
 export const queryVectors = asyncHandler(async (req, res) => {
   const { queryEmbedding, topK = 5, fileId } = req.body;
 
-  const query = { owner: req.user._id };
-  if (fileId) query.fileId = fileId;
+  let allowedFileIds = [];
+  if (fileId) {
+    const file = await File.findOne({
+      _id: fileId,
+      $or: [{ owner: req.user._id }, { users: req.user.email }]
+    });
+    if (!file) return res.status(404).json({ success: false, message: 'File not found' });
+    allowedFileIds = [fileId];
+  } else {
+    const files = await File.find({
+      isDeleted: false,
+      $or: [{ owner: req.user._id }, { users: req.user.email }]
+    }).select('_id');
+    allowedFileIds = files.map(f => f._id);
+  }
 
-  const vectors = await Vector.find(query).populate('fileId', 'name type');
+  // Use MongoDB Atlas $vectorSearch aggregation pipeline
+  // Requires an Atlas Vector Search index named "vector_index" on the "embedding" field.
+  const pipeline = [
+    {
+      $vectorSearch: {
+        index: "vector_index",
+        path: "embedding",
+        queryVector: queryEmbedding,
+        numCandidates: parseInt(topK) * 10,
+        limit: parseInt(topK),
+        // Filter directly inside vector search is faster, but requires defining the filter in the index schema.
+        // We match afterwards for simplicity and schema agnosticism, though it's less efficient.
+      }
+    },
+    {
+      $match: {
+        fileId: { $in: allowedFileIds }
+      }
+    },
+    {
+      $project: {
+        chunkIndex: 1,
+        text: 1,
+        fileId: 1,
+        score: { $meta: "vectorSearchScore" }
+      }
+    }
+  ];
 
-  // Compute cosine similarity
-  const dotProduct = (a, b) => a.reduce((sum, ai, i) => sum + ai * b[i], 0);
-  const magnitude = (v) => Math.sqrt(v.reduce((sum, vi) => sum + vi * vi, 0));
+  const results = await Vector.aggregate(pipeline);
 
-  const queryMag = magnitude(queryEmbedding);
+  // Populate file metadata
+  await Vector.populate(results, { path: 'fileId', select: 'name type' });
 
-  const scored = vectors
-    .map((v) => {
-      const sim = dotProduct(queryEmbedding, v.embedding) / (queryMag * magnitude(v.embedding));
-      return {
-        chunkIndex: v.chunkIndex,
-        text: v.text,
-        score: parseFloat(sim.toFixed(4)),
-        fileId: v.fileId?._id,
-        fileName: v.fileId?.name,
-      };
-    })
-    .sort((a, b) => b.score - a.score)
-    .slice(0, parseInt(topK));
+  const scored = results.map((v) => ({
+    chunkIndex: v.chunkIndex,
+    text: v.text,
+    score: parseFloat((v.score || 0).toFixed(4)),
+    fileId: v.fileId?._id,
+    fileName: v.fileId?.name,
+  }));
 
   res.json({ success: true, data: scored });
 });
@@ -142,7 +188,10 @@ export const queryVectors = asyncHandler(async (req, res) => {
  * Delete all vectors for a file.
  */
 export const deleteVectors = asyncHandler(async (req, res) => {
-  const file = await File.findOne({ _id: req.params.fileId, owner: req.user._id });
+  const file = await File.findOne({
+    _id: req.params.fileId,
+    $or: [{ owner: req.user._id }, { users: req.user.email }]
+  });
   if (!file) {
     return res.status(404).json({
       success: false,

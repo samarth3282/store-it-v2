@@ -34,10 +34,12 @@ const OtpModal = ({
   const [isOpen, setIsOpen] = useState(true);
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const handleSubmit = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
     setIsLoading(true);
+    setError("");
 
     try {
       const result = await verifyOtp(accountId, password);
@@ -46,9 +48,12 @@ const OtpModal = ({
         // Store tokens and user in AuthContext
         login(result.data.accessToken!, result.data.refreshToken!, result.data.user);
         router.push("/");
+      } else {
+        setError(result.message || "Invalid OTP");
       }
     } catch (error) {
       console.log("Failed to verify OTP", error);
+      setError("Failed to verify OTP");
     }
 
     setIsLoading(false);
@@ -89,6 +94,8 @@ const OtpModal = ({
             <InputOTPSlot index={5} className="shad-otp-slot" />
           </InputOTPGroup>
         </InputOTP>
+
+        {error && <p className="text-red-500 text-sm text-center">{error}</p>}
 
         <AlertDialogFooter>
           <div className="flex w-full flex-col gap-4">

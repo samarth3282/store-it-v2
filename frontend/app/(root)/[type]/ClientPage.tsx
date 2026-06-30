@@ -2,9 +2,9 @@
 
 import React, { useEffect, useState } from "react";
 import Sort from "@/components/Sort";
-import { getFiles } from "@/lib/api/files";
+import { getFiles, getStorageStats } from "@/lib/api/files";
 import Card from "@/components/Card";
-import { getFileTypesParams } from "@/lib/utils";
+import { getFileTypesParams, convertFileSize } from "@/lib/utils";
 import { useParams, useSearchParams } from "next/navigation";
 import Image from "next/image";
 
@@ -18,6 +18,7 @@ const Page = () => {
 
   const [files, setFiles] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
+  const [totalSize, setTotalSize] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
 
   const types = getFileTypesParams(type) as FileType[];
@@ -34,16 +35,37 @@ const Page = () => {
           sortOrder = parts[1];
         }
 
-        const result = await getFiles({
-          types,
-          searchText,
-          sortBy,
-          sortOrder,
-        });
+        const [result, statsResult] = await Promise.all([
+          getFiles({
+            types,
+            searchText,
+            sortBy,
+            sortOrder,
+          }),
+          getStorageStats(),
+        ]);
 
         if (result.success) {
           setFiles(result.data.files || []);
           setTotal(result.data.total || 0);
+        }
+
+        if (statsResult.success) {
+          const stats = statsResult.data;
+          // Determine the key in byType based on the current page type
+          let typeKey = "other";
+          if (type === "documents") typeKey = "document";
+          else if (type === "images") typeKey = "image";
+          else if (type === "media") typeKey = "video"; // or sum audio+video
+
+          // If type is media, we should probably combine video and audio size
+          let size = 0;
+          if (type === "media") {
+             size = (stats.byType?.video?.size || 0) + (stats.byType?.audio?.size || 0);
+          } else {
+             size = stats.byType?.[typeKey]?.size || 0;
+          }
+          setTotalSize(size);
         }
       } catch (error) {
         console.error("Failed to fetch files:", error);
@@ -76,7 +98,7 @@ const Page = () => {
 
         <div className="total-size-section">
           <p className="body-1">
-            Total: <span className="h5">0 MB</span>
+            Total: <span className="h5">{convertFileSize(totalSize)}</span>
           </p>
 
           <div className="sort-container">

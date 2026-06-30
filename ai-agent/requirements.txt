@@ -1,12 +1,29 @@
+# Web framework
 fastapi
 uvicorn
 python-multipart
+
+# LangChain / LangGraph
 langchain
 langgraph
 langchain-google-genai
-appwrite
+langchain-core
+
+# Google Generative AI (for OCR fallback and model listing)
+google-generativeai
+
+# HTTP client for Express API calls (replaces Appwrite SDK)
+httpx
+
+# PDF extraction
+pdfplumber
+
+# Word document extraction
+python-docx
+
+# Environment
 python-dotenv
 pydantic
-requests
-pdfplumber
+
+# Numeric (kept for potential local fallback; minimal footprint)
 numpy

@@ -1,6 +1,6 @@
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { uploadToS3, generatePresignedGetUrl, generateDownloadUrl, deleteFromS3 } from '../services/s3Service.js';
-import { enforceStorageLimit, updateStorageUsed } from '../services/storageService.js';
+import { reserveStorage, updateStorageUsed } from '../services/storageService.js';
 import { buildS3Key, getFileType, getExtension } from '../utils/fileUtils.js';
 import { sendShareNotificationEmail } from '../services/emailService.js';
 import File from '../models/File.model.js';
@@ -14,37 +14,48 @@ export const uploadFile = asyncHandler(async (req, res) => {
   const { user, file } = req;
   const displayName = req.body.name || file.originalname;
 
-  // Enforce quota
-  await enforceStorageLimit(user, file.size);
+  // Atomically reserve storage to prevent TOCTOU race condition
+  await reserveStorage(user._id, file.size);
 
-  // Build S3 key and upload
-  const extension = getExtension(file.originalname);
-  const s3Key = buildS3Key(user._id, extension);
-  await uploadToS3({ key: s3Key, buffer: file.buffer, contentType: file.mimetype });
+  let s3Key;
+  try {
+    // Build S3 key and upload
+    const extension = getExtension(file.originalname);
+    s3Key = buildS3Key(user._id, extension);
+    await uploadToS3({ key: s3Key, buffer: file.buffer, contentType: file.mimetype });
 
-  // Persist metadata to MongoDB
-  const fileDoc = await File.create({
-    owner: user._id,
-    name: displayName,
-    originalName: file.originalname,
-    s3Key,
-    s3Bucket: process.env.AWS_S3_BUCKET,
-    mimeType: file.mimetype,
-    extension,
-    size: file.size,
-    type: getFileType(file.mimetype),
-  });
+    let fileDoc;
+    try {
+      // Persist metadata to MongoDB
+      fileDoc = await File.create({
+        owner: user._id,
+        name: displayName,
+        originalName: file.originalname,
+        s3Key,
+        s3Bucket: process.env.AWS_S3_BUCKET,
+        mimeType: file.mimetype,
+        extension,
+        size: file.size,
+        type: getFileType(file.mimetype),
+      });
+    } catch (error) {
+      // Rollback S3 upload if DB fails
+      await deleteFromS3(s3Key);
+      throw error;
+    }
 
-  // Update user's storage counter
-  await updateStorageUsed(user._id, file.size);
+    // Generate pre-signed URL for immediate use
+    const url = await generatePresignedGetUrl(s3Key);
 
-  // Generate pre-signed URL for immediate use
-  const url = await generatePresignedGetUrl(s3Key);
+    const response = fileDoc.toJSON();
+    response.url = url;
 
-  const response = fileDoc.toJSON();
-  response.url = url;
-
-  res.status(201).json({ success: true, data: response });
+    res.status(201).json({ success: true, data: response });
+  } catch (error) {
+    // Rollback reserved storage
+    await updateStorageUsed(user._id, -file.size);
+    throw error;
+  }
 });
 
 /**
@@ -71,7 +82,7 @@ export const getFiles = asyncHandler(async (req, res) => {
   if (searchText) {
     filesQuery = File.find({
       $or: orConditions,
-      name: { $regex: searchText, $options: 'i' },
+      $text: { $search: searchText },
     });
   }
 
@@ -87,7 +98,7 @@ export const getFiles = asyncHandler(async (req, res) => {
 
   const [files, total] = await Promise.all([
     filesQuery.skip(skip).limit(limitNum).populate('owner', 'fullName email avatar'),
-    File.countDocuments({ $or: orConditions, ...(searchText ? { name: { $regex: searchText, $options: 'i' } } : {}) }),
+    File.countDocuments({ $or: orConditions, ...(searchText ? { $text: { $search: searchText } } : {}) }),
   ]);
 
   // Generate presigned URLs for each file
@@ -212,9 +223,6 @@ export const permanentDelete = asyncHandler(async (req, res) => {
     });
   }
 
-  // Delete from S3
-  await deleteFromS3(file.s3Key);
-
   // Delete associated vectors
   await Vector.deleteMany({ fileId: file._id });
 
@@ -223,6 +231,13 @@ export const permanentDelete = asyncHandler(async (req, res) => {
 
   // Remove from MongoDB
   await File.findByIdAndDelete(file._id);
+
+  // Delete from S3 last to prevent orphaned DB data if S3 deletion fails
+  try {
+    await deleteFromS3(file.s3Key);
+  } catch (error) {
+    console.error(`Failed to delete S3 object for file ${file._id}:`, error);
+  }
 
   res.json({ success: true, message: 'File permanently deleted.' });
 });
@@ -294,16 +309,63 @@ export const shareFile = asyncHandler(async (req, res) => {
   }
 
   // Update the users array (emails of people file is shared with)
-  file.users = emails;
-  await file.save();
+  const sharedWithDocs = emails.map((email) => ({ email, permission: 'view' }));
+  
+  await File.findByIdAndUpdate(
+    file._id,
+    { 
+      $addToSet: { 
+        users: { $each: emails },
+      },
+      $push: {
+        sharedWith: { $each: sharedWithDocs }
+      }
+    }
+  );
+
+  const updatedFile = await File.findById(file._id);
 
   // Send notification emails (non-blocking — failures are logged, not thrown)
   for (const email of emails) {
-    sendShareNotificationEmail(email, req.user.fullName, file.name);
+    sendShareNotificationEmail(email, req.user.fullName, updatedFile.name);
   }
 
-  const json = file.toJSON();
-  json.url = await generatePresignedGetUrl(file.s3Key);
+  const json = updatedFile.toJSON();
+  json.url = await generatePresignedGetUrl(updatedFile.s3Key);
+
+  res.json({ success: true, data: json });
+});
+
+/**
+ * DELETE /api/files/:fileId/share/:email
+ */
+export const unshareFile = asyncHandler(async (req, res) => {
+  const { email } = req.params;
+
+  const file = await File.findOne({ _id: req.params.fileId, owner: req.user._id });
+  if (!file) {
+    return res.status(404).json({
+      success: false,
+      code: 'FILE_NOT_FOUND',
+      message: 'File not found.',
+    });
+  }
+
+  // Remove the user from the arrays using $pull
+  await File.findByIdAndUpdate(
+    file._id,
+    { 
+      $pull: { 
+        users: email,
+        sharedWith: { email: email }
+      }
+    }
+  );
+
+  const updatedFile = await File.findById(file._id);
+
+  const json = updatedFile.toJSON();
+  json.url = await generatePresignedGetUrl(updatedFile.s3Key);
 
   res.json({ success: true, data: json });
 });

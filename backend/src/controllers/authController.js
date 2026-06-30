@@ -113,12 +113,29 @@ export const verifyOtp = asyncHandler(async (req, res) => {
   }
   await user.save();
 
+  let userData = user.toJSON();
+  if (userData.avatar && !userData.avatar.startsWith('http')) {
+    const { generatePresignedGetUrl } = await import('../services/s3Service.js');
+    try {
+      userData.avatar = await generatePresignedGetUrl(userData.avatar);
+    } catch {
+      userData.avatar = null;
+    }
+  }
+
+  // Set httpOnly cookie for refreshToken
+  res.cookie('refreshToken', refreshToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
+  });
+
   res.json({
     success: true,
     data: {
       accessToken,
-      refreshToken,
-      user: user.toJSON(),
+      user: userData,
     },
   });
 });
@@ -194,7 +211,7 @@ export const login = asyncHandler(async (req, res) => {
  * Old refresh token is invalidated (rotation).
  */
 export const refreshToken = asyncHandler(async (req, res) => {
-  const { refreshToken: oldToken } = req.body;
+  const oldToken = req.cookies.refreshToken;
 
   if (!oldToken) {
     return res.status(400).json({
@@ -246,11 +263,18 @@ export const refreshToken = asyncHandler(async (req, res) => {
   user.refreshTokens.push(newRefreshToken);
   await user.save();
 
+  // Set httpOnly cookie for new refreshToken
+  res.cookie('refreshToken', newRefreshToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
+  });
+
   res.json({
     success: true,
     data: {
       accessToken: newAccessToken,
-      refreshToken: newRefreshToken,
     },
   });
 });
@@ -260,13 +284,15 @@ export const refreshToken = asyncHandler(async (req, res) => {
  * Invalidates the provided refresh token on the server.
  */
 export const logout = asyncHandler(async (req, res) => {
-  const { refreshToken: tokenToRemove } = req.body;
+  const tokenToRemove = req.cookies.refreshToken;
 
   if (tokenToRemove) {
     await User.findByIdAndUpdate(req.user._id, {
       $pull: { refreshTokens: tokenToRemove },
     });
   }
+
+  res.clearCookie('refreshToken');
 
   res.json({
     success: true,

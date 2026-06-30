@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Send, Bot, X, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getAccessToken } from "@/lib/api/config";
 
 interface Message {
     role: "user" | "ai";
@@ -36,12 +37,42 @@ export function ChatInterface() {
         setLoading(true);
         setMessages((prev) => [...prev, { role: "user", content: userMsg }]);
 
+        // Guard against unauthenticated calls
+        const accessToken = getAccessToken();
+        if (!accessToken) {
+            setMessages((prev) => [
+                ...prev,
+                {
+                    role: "ai",
+                    content: "Please sign in to use the AI assistant.",
+                },
+            ]);
+            setLoading(false);
+            return;
+        }
+
         try {
-            const res = await fetch("http://localhost:8000/chat", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ message: userMsg }),
-            });
+            // Build history from current messages (before the new user message was added)
+            // messages state already includes the new user message at this point
+            const history = messages.map((m) => ({
+                role: m.role === "user" ? "human" : "ai",
+                content: m.content,
+            }));
+
+            const res = await fetch(
+                process.env.NEXT_PUBLIC_AGENT_URL
+                    ? `${process.env.NEXT_PUBLIC_AGENT_URL}/chat`
+                    : "http://localhost:8000/chat",
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        message: userMsg,
+                        history: history,
+                        user_token: accessToken,
+                    }),
+                }
+            );
 
             if (!res.ok) throw new Error(res.statusText);
 

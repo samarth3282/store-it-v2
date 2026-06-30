@@ -5,9 +5,19 @@ import User from '../models/User.model.js';
  * GET /api/users/me
  */
 export const getProfile = asyncHandler(async (req, res) => {
+  let userData = req.user.toJSON();
+  if (userData.avatar && !userData.avatar.startsWith('http')) {
+    const { generatePresignedGetUrl } = await import('../services/s3Service.js');
+    try {
+      userData.avatar = await generatePresignedGetUrl(userData.avatar);
+    } catch {
+      userData.avatar = null;
+    }
+  }
+
   res.json({
     success: true,
-    data: req.user.toJSON(),
+    data: userData,
   });
 });
 
@@ -27,8 +37,7 @@ export const updateProfile = asyncHandler(async (req, res) => {
     const s3Key = buildS3Key(req.user._id, extension);
     await uploadToS3({ key: s3Key, buffer: req.file.buffer, contentType: req.file.mimetype });
 
-    const avatarUrl = await generatePresignedGetUrl(s3Key);
-    updates.avatar = avatarUrl;
+    updates.avatar = s3Key;
   }
 
   const user = await User.findByIdAndUpdate(req.user._id, updates, {
@@ -36,5 +45,15 @@ export const updateProfile = asyncHandler(async (req, res) => {
     runValidators: true,
   });
 
-  res.json({ success: true, data: user.toJSON() });
+  let userData = user.toJSON();
+  if (userData.avatar && !userData.avatar.startsWith('http')) {
+    const { generatePresignedGetUrl } = await import('../services/s3Service.js');
+    try {
+      userData.avatar = await generatePresignedGetUrl(userData.avatar);
+    } catch {
+      userData.avatar = null;
+    }
+  }
+
+  res.json({ success: true, data: userData });
 });

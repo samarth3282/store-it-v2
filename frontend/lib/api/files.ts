@@ -94,6 +94,16 @@ export const shareFile = async (fileId: string, emails: string[]): Promise<any> 
 };
 
 /**
+ * Remove a shared user from a file.
+ */
+export const unshareFile = async (fileId: string, email: string): Promise<any> => {
+  const response = await apiFetch(`/api/files/${fileId}/share/${encodeURIComponent(email)}`, {
+    method: 'DELETE',
+  });
+  return response.json();
+};
+
+/**
  * Get download URL for a file.
  */
 export const downloadFile = async (fileId: string): Promise<any> => {

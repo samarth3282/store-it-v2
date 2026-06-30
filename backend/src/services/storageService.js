@@ -18,6 +18,29 @@ export const enforceStorageLimit = async (user, additionalBytes) => {
 };
 
 /**
+ * Atomically reserve storage for a new upload.
+ * If quota is exceeded, it returns null or throws.
+ */
+export const reserveStorage = async (userId, additionalBytes) => {
+  const user = await User.findOneAndUpdate(
+    {
+      _id: userId,
+      $expr: { $lte: [{ $add: ["$storageUsed", additionalBytes] }, "$storageLimit"] }
+    },
+    { $inc: { storageUsed: additionalBytes } },
+    { new: true }
+  );
+
+  if (!user) {
+    const error = new Error('Storage quota exceeded.');
+    error.statusCode = 507;
+    error.code = 'STORAGE_QUOTA_EXCEEDED';
+    throw error;
+  }
+  return user;
+};
+
+/**
  * Increment or decrement the user's storageUsed counter.
  * Pass positive bytes for upload, negative for delete.
  */
@@ -34,7 +57,7 @@ export const updateStorageUsed = async (userId, bytes) => {
 export const calculateUserStorageUsed = async (userId) => {
   const File = (await import('../models/File.model.js')).default;
   const result = await File.aggregate([
-    { $match: { owner: userId, isDeleted: false } },
+    { $match: { owner: userId } },
     { $group: { _id: null, total: { $sum: '$size' } } },
   ]);
   return result[0]?.total || 0;

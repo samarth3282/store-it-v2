@@ -16,6 +16,7 @@ const Dashboard = () => {
   const [files, setFiles] = useState<any[]>([]);
   const [totalSpace, setTotalSpace] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -27,6 +28,8 @@ const Dashboard = () => {
 
         if (filesResult.success) {
           setFiles(filesResult.data.files || []);
+        } else {
+          setError(filesResult.message || "Failed to fetch files.");
         }
 
         if (statsResult.success) {
@@ -56,9 +59,12 @@ const Dashboard = () => {
             used: stats.totalUsed || 0,
             all: stats.totalLimit || 2 * 1024 * 1024 * 1024,
           });
+        } else {
+          setError(statsResult.message || "Failed to fetch storage stats.");
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("Failed to fetch dashboard data:", error);
+        setError("Network or server error occurred.");
       } finally {
         setIsLoading(false);
       }
@@ -67,7 +73,7 @@ const Dashboard = () => {
     fetchData();
   }, []);
 
-  if (isLoading || !totalSpace) {
+  if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
         <Image
@@ -77,6 +83,20 @@ const Dashboard = () => {
           height={40}
           className="animate-spin"
         />
+      </div>
+    );
+  }
+
+  if (error || !totalSpace) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-4">
+        <p className="h4 text-red-500">{error || "Failed to load dashboard."}</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="shad-submit-btn px-6 py-2 rounded"
+        >
+          Retry
+        </button>
       </div>
     );
   }
