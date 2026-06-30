@@ -61,4 +61,10 @@ if (!parsed.success) {
   process.exit(1);
 }
 
+// Inject all parsed (and defaulted) variables back into process.env 
+// so files that use `process.env.XYZ` work seamlessly with AWS Secrets Manager
+for (const [key, value] of Object.entries(parsed.data)) {
+  process.env[key] = String(value);
+}
+
 export const env = parsed.data;
