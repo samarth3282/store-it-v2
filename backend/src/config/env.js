@@ -44,8 +44,8 @@ if (process.env.USE_SECRETS_MANAGER === 'true') {
     
     if (data.SecretString) {
       const secrets = JSON.parse(data.SecretString);
-      // Merge secrets into env, allowing process.env to override secrets
-      mergedEnv = { ...secrets, ...process.env };
+      // Merge secrets into env. AWS Secrets Manager is the single source of truth in production!
+      mergedEnv = { ...process.env, ...secrets };
       console.log('✅ Secrets fetched successfully.');
     }
   } catch (err) {
