@@ -1,0 +1,39 @@
+name: Deploy AI Agent to EC2
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'ai-agent/**'
+      - '.github/workflows/deploy-agent.yml'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS Credentials using OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Run deployment commands via AWS SSM
+        run: |
+          aws ssm send-command \
+            --instance-ids "${{ secrets.AGENT_EC2_INSTANCE_ID }}" \
+            --document-name "AWS-RunShellScript" \
+            --comment "Deploy AI agent" \
+            --parameters commands='[
+              "su - ec2-user -c \"cd store-it-v2 && git pull && pm2 restart store-it-v2-agent\""
+            ]' \
+            --timeout-seconds 60 \
+            --max-concurrency "50" \
+            --max-errors "0" \
+            --region ${{ secrets.AWS_REGION }}
