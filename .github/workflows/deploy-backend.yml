@@ -31,7 +31,7 @@ jobs:
             --document-name "AWS-RunShellScript" \
             --comment "Deploy backend" \
             --parameters commands='[
-              "su - ec2-user -c \"cd store-it-v2/store-it-v2 && git pull && pm2 restart store-it-v2-backend\""
+              "su - ec2-user -c \"cd store-it-v2/store-it-v2/backend && git pull && pm2 start ecosystem.config.js && pm2 save\""
             ]' \
             --timeout-seconds 60 \
             --max-concurrency "50" \

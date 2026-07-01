@@ -31,7 +31,7 @@ jobs:
             --document-name "AWS-RunShellScript" \
             --comment "Deploy AI agent" \
             --parameters commands='[
-              "su - ec2-user -c \"cd store-it-v2 && git pull && pm2 restart store-it-v2-agent\""
+              "su - ec2-user -c \"cd store-it-v2/ai-agent && git pull && pm2 start ecosystem.config.js && pm2 save\""
             ]' \
             --timeout-seconds 60 \
             --max-concurrency "50" \
