@@ -7,10 +7,17 @@ import { Button } from "@/components/ui/button";
 import Image from "next/image";
 
 const ImageThumbnail = ({ file }: { file: any }) => (
-  <div className="file-details-thumbnail">
-    <Thumbnail type={file.type} extension={file.extension} url={file.url} />
-    <div className="flex flex-col">
-      <p className="subtitle-2 mb-1">{file.name}</p>
+  <div className="file-details-thumbnail max-w-full">
+    <div className="shrink-0">
+      <Thumbnail type={file.type} extension={file.extension} url={file.url} />
+    </div>
+    <div className="flex w-0 flex-1 flex-col">
+      <div className="file-name-marquee group mb-1">
+        <div className="marquee-content">
+          <span className="subtitle-2 whitespace-nowrap">{file.name}</span>
+          <span className="subtitle-2 whitespace-nowrap">{file.name}</span>
+        </div>
+      </div>
       <FormattedDateTime date={file.createdAt} className="caption" />
     </div>
   </div>

@@ -16,6 +16,9 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import FileUploader from "@/components/FileUploader";
 import { useAuth } from "@/contexts/AuthContext";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { AccentColorPicker } from "@/components/AccentColorPicker";
+import { DynamicLogo } from "@/components/DynamicLogo";
 
 interface Props {
   $id?: string;
@@ -41,13 +44,7 @@ const MobileNavigation = ({
 
   return (
     <header className="mobile-header">
-      <Image
-        src="/assets/icons/logo-full-brand.svg"
-        alt="logo"
-        width={120}
-        height={52}
-        className="h-auto"
-      />
+      <DynamicLogo showText={true} className="h-auto" />
 
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetTrigger>
@@ -107,6 +104,8 @@ const MobileNavigation = ({
 
           <div className="flex flex-col justify-between gap-5 pb-5">
             <FileUploader ownerId={ownerId} accountId={accountId} />
+            <AccentColorPicker />
+            <ThemeToggle />
             <Button
               type="button"
               className="mobile-sign-out-button"

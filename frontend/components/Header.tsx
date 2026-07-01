@@ -6,6 +6,8 @@ import Image from "next/image";
 import Search from "@/components/Search";
 import FileUploader from "@/components/FileUploader";
 import { useAuth } from "@/contexts/AuthContext";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { AccentColorPicker } from "@/components/AccentColorPicker";
 
 const Header = ({
   userId,
@@ -21,6 +23,8 @@ const Header = ({
       <Search />
       <div className="header-wrapper">
         <FileUploader ownerId={userId} accountId={accountId} />
+        <AccentColorPicker />
+        <ThemeToggle />
         <Button
           type="button"
           className="sign-out-button"

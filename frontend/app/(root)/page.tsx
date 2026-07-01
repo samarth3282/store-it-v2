@@ -11,6 +11,7 @@ import { Thumbnail } from "@/components/Thumbnail";
 import { Separator } from "@/components/ui/separator";
 import { getFiles, getStorageStats } from "@/lib/api/files";
 import { convertFileSize, getUsageSummary } from "@/lib/utils";
+import { SummaryCard } from "@/components/SummaryCard";
 
 const Dashboard = () => {
   const [files, setFiles] = useState<any[]>([]);
@@ -75,14 +76,37 @@ const Dashboard = () => {
 
   if (isLoading) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <Image
-          src="/assets/icons/loader.svg"
-          alt="Loading..."
-          width={40}
-          height={40}
-          className="animate-spin"
-        />
+      <div className="dashboard-container">
+        <section>
+          <div className="h-[250px] w-full animate-pulse rounded-lg bg-light-200" />
+          <ul className="dashboard-summary-list">
+            {[...Array(4)].map((_, index) => (
+              <div key={index} className="dashboard-summary-card animate-pulse space-y-4">
+                <div className="flex justify-between gap-3">
+                  <div className="size-12 rounded bg-light-200" />
+                  <div className="h-6 w-16 rounded bg-light-200" />
+                </div>
+                <div className="h-5 w-24 rounded bg-light-200" />
+                <div className="h-px w-full bg-light-400" />
+                <div className="h-4 w-32 rounded bg-light-200" />
+              </div>
+            ))}
+          </ul>
+        </section>
+        <section className="dashboard-recent-files">
+          <div className="h-8 w-48 animate-pulse rounded-md bg-light-200" />
+          <ul className="mt-5 flex flex-col gap-5">
+            {[...Array(5)].map((_, index) => (
+              <div key={index} className="flex items-center gap-3">
+                <div className="size-12 animate-pulse rounded bg-light-200" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 w-3/4 animate-pulse rounded bg-light-200" />
+                  <div className="h-3 w-1/2 animate-pulse rounded bg-light-200" />
+                </div>
+              </div>
+            ))}
+          </ul>
+        </section>
       </div>
     );
   }
@@ -112,47 +136,28 @@ const Dashboard = () => {
         {/* Uploaded file type summaries */}
         <ul className="dashboard-summary-list">
           {usageSummary.map((summary) => (
-            <Link
-              href={summary.url}
+            <SummaryCard
               key={summary.title}
-              className="dashboard-summary-card"
-            >
-              <div className="space-y-4">
-                <div className="flex justify-between gap-3">
-                  <Image
-                    src={summary.icon}
-                    width={100}
-                    height={100}
-                    alt="uploaded image"
-                    className="summary-type-icon"
-                  />
-                  <h4 className="summary-type-size">
-                    {convertFileSize(summary.size) || 0}
-                  </h4>
-                </div>
-
-                <h5 className="summary-type-title">{summary.title}</h5>
-                <Separator className="bg-light-400" />
-                <FormattedDateTime
-                  date={summary.latestDate}
-                  className="text-center"
-                />
-              </div>
-            </Link>
+              title={summary.title}
+              size={summary.size}
+              latestDate={summary.latestDate}
+              icon={summary.icon}
+              url={summary.url}
+            />
           ))}
         </ul>
       </section>
 
       {/* Recent files uploaded */}
       <section className="dashboard-recent-files">
-        <h2 className="h3 xl:h2 text-light-100">Recent files uploaded</h2>
+        <h2 className="h3 xl:h2 text-light-100 dark:text-white">Recent files uploaded</h2>
         {files.length > 0 ? (
           <ul className="mt-5 flex flex-col gap-5">
             {files.map((file: any) => (
               <Link
                 href={file.url || "#"}
                 target="_blank"
-                className="flex items-center gap-3"
+                className="flex items-center gap-3 border-b border-light-300 pb-5 last:border-b-0 last:pb-0 dark:border-light-100/20"
                 key={file.id}
               >
                 <Thumbnail

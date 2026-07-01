@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { navItems } from "@/constants";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { navItems } from "@/constants";
+import { DynamicLogo } from "@/components/DynamicLogo";
+import { useAccentColor, accentColors } from "@/contexts/AccentColorContext";
 
 interface Props {
   fullName: string;
@@ -14,25 +16,14 @@ interface Props {
 
 const Sidebar = ({ fullName, avatar, email }: Props) => {
   const pathname = usePathname();
+  const { accentColor } = useAccentColor();
+  const currentColor = accentColors[accentColor];
 
   return (
     <aside className="sidebar">
       <Link href="/">
-        <Image
-          src="/assets/icons/logo-full-brand.svg"
-          alt="logo"
-          width={160}
-          height={50}
-          className="hidden h-auto lg:block"
-        />
-
-        <Image
-          src="/assets/icons/logo-brand.svg"
-          alt="logo"
-          width={52}
-          height={52}
-          className="lg:hidden"
-        />
+        <DynamicLogo showText={true} className="hidden h-auto lg:block" />
+        <DynamicLogo showText={false} className="lg:hidden" />
       </Link>
 
       <nav className="sidebar-nav">
@@ -62,13 +53,22 @@ const Sidebar = ({ fullName, avatar, email }: Props) => {
         </ul>
       </nav>
 
-      <Image
-        src="/assets/images/files-2.png"
-        alt="logo"
-        width={506}
-        height={418}
-        className="w-full"
-      />
+      <div className="relative h-[250px] w-full">
+        <div
+          className="absolute inset-x-0 bottom-0 h-[140px] rounded-[30px] transition-colors duration-300"
+          style={{ backgroundColor: currentColor.hex }}
+        />
+        <div className="relative flex size-full items-end justify-center pb-4">
+          <Image
+            src="/assets/images/files.png"
+            alt="logo"
+            width={513}
+            height={513}
+            className="h-auto w-[75%] object-contain"
+            quality={100}
+          />
+        </div>
+      </div>
 
       <div className="sidebar-user-info">
         <Image
@@ -78,9 +78,9 @@ const Sidebar = ({ fullName, avatar, email }: Props) => {
           height={44}
           className="sidebar-user-avatar"
         />
-        <div className="hidden lg:block">
-          <p className="subtitle-2 capitalize">{fullName}</p>
-          <p className="caption">{email}</p>
+        <div className="hidden overflow-hidden lg:block">
+          <p className="subtitle-2 truncate capitalize">{fullName}</p>
+          <p className="caption truncate">{email}</p>
         </div>
       </div>
     </aside>
