@@ -35,11 +35,15 @@ const envSchema = z.object({
 
 let mergedEnv = { ...process.env };
 
-if (process.env.USE_SECRETS_MANAGER === 'true') {
+// Auto-detect if we need Secrets Manager (if we don't have MONGODB_URI, we are likely on EC2 without a .env file)
+const useSecretsManager = process.env.USE_SECRETS_MANAGER === 'true' || !process.env.MONGODB_URI;
+
+if (useSecretsManager) {
   console.log('🔒 Fetching configuration from AWS Secrets Manager...');
   try {
     const client = new SecretsManagerClient({ region: process.env.AWS_REGION || 'us-east-1' });
-    const command = new GetSecretValueCommand({ SecretId: process.env.AWS_SECRET_NAME });
+    const secretName = process.env.AWS_SECRET_NAME || 'store-it-v2/backend';
+    const command = new GetSecretValueCommand({ SecretId: secretName });
     const data = await client.send(command);
     
     if (data.SecretString) {

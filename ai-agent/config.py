@@ -17,13 +17,16 @@ load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
 import json
 
 # --- NEW: Fetch from AWS Secrets Manager ---
-if os.environ.get("USE_SECRETS_MANAGER") == "true":
+# Auto-detect if we need Secrets Manager (if we don't have GOOGLE_API_KEY, we are likely on EC2 without a .env file)
+use_secrets_manager = os.environ.get("USE_SECRETS_MANAGER") == "true" or not os.environ.get("GOOGLE_API_KEY")
+
+if use_secrets_manager:
     print("🔒 Fetching configuration from AWS Secrets Manager...")
     import boto3
     from botocore.exceptions import ClientError
     
     region_name = os.environ.get("AWS_REGION", "us-east-1")
-    secret_name = os.environ.get("AWS_SECRET_NAME")
+    secret_name = os.environ.get("AWS_SECRET_NAME", "store-it-v2/agent")
     
     session = boto3.session.Session()
     client = session.client(service_name='secretsmanager', region_name=region_name)
