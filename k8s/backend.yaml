@@ -1,0 +1,60 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: storeit-backend-sa
+  namespace: default
+  annotations:
+    # TODO: Replace with the actual ARN of the IAM role that has Secrets Manager read access
+    eks.amazonaws.com/role-arn: arn:aws:iam::461780750771:role/store-it-v2-eks-role
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: storeit-backend
+  labels:
+    app: storeit-backend
+spec:
+  replicas: 1 # Number of EC2 instances to run the backend on initially
+  selector:
+    matchLabels:
+      app: storeit-backend
+  template:
+    metadata:
+      labels:
+        app: storeit-backend
+    spec:
+      hostNetwork: true
+      serviceAccountName: storeit-backend-sa
+      containers:
+      - name: backend
+        image: samarth3282/store-it-v2-backend:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 5000
+        env:
+        # Since we use AWS Secrets Manager inside the app, we only need to pass the region and secret name
+        - name: AWS_REGION
+          value: "us-east-1"
+        - name: AWS_SECRET_NAME
+          value: "store-it-v2/backend"
+        - name: USE_SECRETS_MANAGER
+          value: "true"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+          initialDelaySeconds: 10
+          periodSeconds: 15
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: storeit-backend-service
+spec:
+  type: LoadBalancer # Exposes the backend to the internet via an AWS ALB/ELB
+  selector:
+    app: storeit-backend
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 5000
