@@ -42,6 +42,6 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             sudo docker pull samarth3282/store-it-v2-backend:latest
-            sudo docker stop backend-server || true
-            sudo docker rm backend-server || true
+            sudo docker rm -f $(sudo docker ps -q --filter publish=5000) || true
+            sudo docker rm -f backend-server || true
             sudo docker run -d --name backend-server --restart unless-stopped -p 5000:5000 samarth3282/store-it-v2-backend:latest

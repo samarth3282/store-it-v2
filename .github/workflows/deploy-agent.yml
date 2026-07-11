@@ -42,6 +42,6 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             sudo docker pull samarth3282/store-it-v2-agent:latest
-            sudo docker stop ai-server || true
-            sudo docker rm ai-server || true
+            sudo docker rm -f $(sudo docker ps -q --filter publish=8000) || true
+            sudo docker rm -f ai-server || true
             sudo docker run -d --name ai-server --restart unless-stopped -p 8000:8000 -e EXPRESS_API_URL=http://${{ secrets.BACKEND_EC2_HOST }}:5000 samarth3282/store-it-v2-agent:latest
