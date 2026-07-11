@@ -1,4 +1,4 @@
-name: Deploy AI Agent to EKS
+name: Deploy AI Agent to EC2
 
 on:
   push:
@@ -34,16 +34,14 @@ jobs:
           push: true
           tags: samarth3282/store-it-v2-agent:${{ github.sha }},samarth3282/store-it-v2-agent:latest
 
-      - name: Configure AWS Credentials using OIDC
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.3
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ${{ secrets.AWS_REGION }}
-
-      - name: Update kubeconfig
-        run: aws eks update-kubeconfig --region ${{ secrets.AWS_REGION }} --name storeit-cluster
-
-      - name: Deploy to EKS
-        run: |
-          kubectl set image deployment/storeit-agent agent=samarth3282/store-it-v2-agent:${{ github.sha }}
-          kubectl rollout status deployment/storeit-agent
+          host: ${{ secrets.AGENT_EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            sudo docker pull samarth3282/store-it-v2-agent:latest
+            sudo docker stop ai-server || true
+            sudo docker rm ai-server || true
+            sudo docker run -d --name ai-server --restart unless-stopped -p 8000:8000 -e EXPRESS_API_URL=http://${{ secrets.BACKEND_EC2_HOST }}:5000 samarth3282/store-it-v2-agent:latest
