@@ -32,10 +32,7 @@ app = FastAPI(title="StoreIt AI Agent", version="2.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://store-it-v2-frontendd.s3-website-us-east-1.amazonaws.com",           # Next.js dev
-        "http://98.86.165.219:5000",
-        "https://store-it-v2.samarth-patel.dev",           # Express backend (for future server-side calls)
-        os.environ.get("FRONTEND_URL", "http://localhost:3000"),
+        "https://store-it-v2.samarth-patel.dev",
     ],
     allow_credentials=True,
     allow_methods=["*"],
