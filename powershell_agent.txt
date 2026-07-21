@@ -1,0 +1,10 @@
+aws ec2 run-instances `
+    --image-id ami-0b826bb6d96d2afe4 `
+    --instance-type t3.micro `
+    --key-name "store-it-v2-key" `
+    --security-group-ids "sg-0843b66285c78a7f1" `
+    --iam-instance-profile Name="store-it-v2-agent-role" `
+    --user-data file://C:\Users\Samar\user-data.sh `
+    --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=store-it-v2-agent}]" `
+    --query "Instances[0].[InstanceId,PublicIpAddress]" `
+    --output table

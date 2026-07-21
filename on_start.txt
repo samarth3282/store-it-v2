@@ -1,2 +1,5 @@
-github secrets
-cloudfront origins
+1. run two commands
+
+2. modify with new ec2 details in github secrets
+
+3. modify cloudfront origins

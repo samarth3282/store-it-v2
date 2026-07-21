@@ -18,6 +18,14 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+      - name: Debug Variables
+        run: |
+          echo "Host is: '${{ secrets.AGENT_EC2_HOST }}'"
+          echo "Username is: '${{ secrets.EC2_USERNAME }}'"
+          echo "Key length is: ${#KEY}"
+        env:
+          KEY: ${{ secrets.EC2_SSH_KEY }}
+
       - name: Checkout code
         uses: actions/checkout@v4
 

@@ -1,0 +1,10 @@
+aws ec2 run-instances `
+    --image-id ami-0b826bb6d96d2afe4 `
+    --instance-type t3.micro `
+    --key-name "store-it-v2-key" `
+    --security-group-ids "sg-0e99c7e53dd35509b" `
+    --iam-instance-profile Name="store-it-v2-backend" `
+    --user-data file://C:\Users\Samar\user-data.sh `
+    --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=store-it-v2-backend}]" `
+    --query "Instances[0].[InstanceId,PublicIpAddress]" `
+    --output table
